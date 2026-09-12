@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  # ── PostgreSQL ──
+  postgres:
+    image: postgres:15-alpine
+    container_name: analyzer_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: analyzer_db
+      POSTGRES_USER: analyzer_user
+      POSTGRES_PASSWORD: analyzer_pass
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5433:5432"                        # ← 5433 снаружи
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U analyzer_user -d analyzer_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - analyzer_network
+
+  # ── Spring Boot Backend ──
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: analyzer_backend
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/analyzer_db
+      SPRING_DATASOURCE_USERNAME: analyzer_user
+      SPRING_DATASOURCE_PASSWORD: analyzer_pass
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_DATA_REDIS_HOST: redis        # ← имя сервиса
+      SPRING_DATA_REDIS_PORT: 6379         # ← внутренний порт
+    ports:
+      - "8081:8080"                        # ← 8081 снаружи
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - analyzer_network
+
+  # ── Redis ──
+  redis:
+    image: redis:7.2-alpine
+    container_name: analyzer_redis
+    restart: unless-stopped
+    ports:
+      - "6380:6379"                        # ← 6380 снаружи
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - analyzer_network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  analyzer_network:
+    driver: bridge
