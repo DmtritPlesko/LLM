@@ -138,7 +138,8 @@ public class SecurityConfig {
         // ✅ Используем Pattern — работает с credentials и любым портом localhost
         configuration.setAllowedOriginPatterns(List.of(
                 "http://localhost:*",
-                "http://127.0.0.1:*"
+                "http://127.0.0.1:*",
+                "http://37.18.102.224:*"        // ← ваш сервер
         ));
 
         configuration.setAllowedMethods(List.of(
